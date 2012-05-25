@@ -88,7 +88,7 @@ public class ZooKeeperConnection {
     @Autowired
     public ZooKeeperConnection(ZooKeeperConfig config) {
         this(config.getHostName(), config.getPort(), config.getPathPrefix(),
-            config.getSessionTimeout(), config.getDnsRetryCount());
+                config.getSessionTimeout(), config.getDnsRetryCount());
 
         config.validate();
     }
@@ -276,6 +276,19 @@ public class ZooKeeperConnection {
     }
 
     /**
+     * The session id for this ZooKeeperConnection. The value returned is
+     * not valid until the client connects to a server and may change after a
+     * re-connect.
+     * <p/>
+     * This method is NOT thread safe
+     *
+     * @return current session id
+     */
+    public long getSessionId() {
+        return zk.getSessionId();
+    }
+
+    /**
      * Creates a persistent sequential node at the given path with the given data.
      *
      * @param path the node path
@@ -436,7 +449,7 @@ public class ZooKeeperConnection {
      * @throws KeeperException          if the server signals an error
      * @throws InterruptedException     if the transaction is interrupted
      * @throws IllegalArgumentException if an invalid path is specified
-     * @see org.apache.zookeeper.ZooKeeper#delete(String,int)
+     * @see org.apache.zookeeper.ZooKeeper#delete(String, int)
      */
     public void delete(final String path, int version) throws KeeperException, InterruptedException {
         zk.delete(path, version);
@@ -449,7 +462,7 @@ public class ZooKeeperConnection {
      * @param version the expected node version (-1 to ignore)
      * @param cb      the asynchronous callback
      * @param ctx     the context object
-     * @see org.apache.zookeeper.ZooKeeper#delete(String,int)
+     * @see org.apache.zookeeper.ZooKeeper#delete(String, int)
      */
     public void delete(final String path, int version, AsyncCallback.VoidCallback cb, Object ctx) {
         zk.delete(path, version, cb, ctx);
