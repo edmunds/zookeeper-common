@@ -2,6 +2,7 @@
 <suite name="etm" annotations="JDK">
     <test name="etm-all" verbose="10" annotations="JDK">
         <packages>
+            <package name="com.edmunds.zookeeper.election"/>
             <package name="com.edmunds.zookeeper.treewatcher"/>
         </packages>
     </test>

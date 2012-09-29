@@ -15,18 +15,13 @@
  */
 package com.edmunds.zookeeper.election;
 
+import org.apache.zookeeper.WatchedEvent;
+
 /**
- * Interface for ZooKeeperElection listeners.
+ * Simple interface to allow watcher callbacks to pass a context.
  *
  * @author David Trott
  */
-public interface ZooKeeperElectionListener {
-
-    /**
-     * Notification of election as leader.
-     *
-     * @param election the election that sent the notification.
-     * @param master   if the current node is the master.
-     */
-    public void onElectionStateChange(ZooKeeperElection election, boolean master);
+public interface ZooKeeperElectionContextWatcher {
+    void process(ZooKeeperElectionContext context, WatchedEvent event);
 }
