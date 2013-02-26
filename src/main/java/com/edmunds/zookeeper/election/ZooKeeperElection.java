@@ -30,9 +30,11 @@ import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.data.Stat;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -69,6 +71,8 @@ public class ZooKeeperElection {
      * The logger.
      */
     private static final Logger logger = Logger.getLogger(ZooKeeperElection.class);
+
+    private static final Comparator<String> SEQUENTIAL_COMPARATOR = new ZooKeeperSequentialValueComparator();
 
     /**
      * The prefix used for all election nodes (sequential ephemeral).
@@ -138,7 +142,7 @@ public class ZooKeeperElection {
     /**
      * Previous nodes that were created by this client.
      */
-    private final ConcurrentHashMap<String, ZooKeeperElectionNode> electionNodes;
+    private final ConcurrentHashMap<String, Boolean> electionNodes;
 
     /**
      * The root path for the election, sequential ephemeral nodes are created directly under this node.
@@ -176,7 +180,7 @@ public class ZooKeeperElection {
         }
 
         this.connection = connection;
-        this.electionNodes = new ConcurrentHashMap<String, ZooKeeperElectionNode>();
+        this.electionNodes = new ConcurrentHashMap<String, Boolean>();
         this.rootPath = rootPath;
         this.listeners = new HashSet<ZooKeeperElectionListener>();
     }
@@ -256,13 +260,15 @@ public class ZooKeeperElection {
 
         logger.debug("Enrolling in election");
 
-        final ZooKeeperElectionContext ctx = new ZooKeeperElectionContext(this);
+        // Create a unique base path containing a UUID.
+        final String nodePath = rootPath + "/" + ELECTION_NODE_PREFIX + UUID.randomUUID().toString() + "-";
+        final ZooKeeperElectionContext ctx = new ZooKeeperElectionContext(this, nodePath);
 
         // Set the active context
         this.electionContext = ctx;
 
         // Create a node for this election.
-        final String nodePath = rootPath + "/" + ELECTION_NODE_PREFIX;
+        electionNodes.put(nodePath, Boolean.TRUE);
         connection.createEphemeralSequential(nodePath, ZERO_BYTE_ARRAY, callbackCreatePrimary, ctx);
     }
 
@@ -276,15 +282,12 @@ public class ZooKeeperElection {
             return;
         }
 
-        final ZooKeeperElectionNode node;
         try {
-            node = ctx.activate(name);
+            ctx.activate(name);
         } catch (IllegalArgumentException e) {
             error("Invalid path to primary election node: " + name, Code.NONODE, path, ctx);
             return;
         }
-
-        electionNodes.put(name, node);
 
         if (logger.isInfoEnabled()) {
             logger.info(String.format("Enrolled as node: %s", name));
@@ -321,7 +324,7 @@ public class ZooKeeperElection {
         final String memberName = ctx.getName();
 
         // Make sure all the children are sorted by time
-        Collections.sort(children);
+        Collections.sort(children, SEQUENTIAL_COMPARATOR);
 
         final int memberIndex = children.indexOf(memberName);
 
@@ -352,15 +355,20 @@ public class ZooKeeperElection {
     }
 
     private void cleanupPriorExecution(ZooKeeperElectionContext ctx, String parentPath, List<String> children) {
-        final String currentName = ctx.getName();
-
         for (final String child : children) {
-            final String path = parentPath + "/" + child;
-            final ZooKeeperElectionNode node = electionNodes.get(path);
+            cleanupPriorElectionNode(ctx, parentPath + "/" + child);
+        }
+    }
 
-            if (node != null && !child.equals(currentName)) {
-                connection.delete(path, -1, callbackDeletePriorNode, ctx);
-            }
+    private void cleanupPriorElectionNode(ZooKeeperElectionContext ctx, String path) {
+        final int idx = path.lastIndexOf('-');
+        if (idx == -1) {
+            return;
+        }
+
+        final String basePath = path.substring(0, idx + 1);
+        if (electionNodes.containsKey(basePath) && !basePath.equals(ctx.getBasePath())) {
+            connection.delete(path, -1, callbackDeletePriorNode, ctx);
         }
     }
 

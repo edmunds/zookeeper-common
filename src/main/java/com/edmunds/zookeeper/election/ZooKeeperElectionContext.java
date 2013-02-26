@@ -53,6 +53,11 @@ public class ZooKeeperElectionContext {
     private final ZooKeeperElection election;
 
     /**
+     * The base name of this context without the sequential modifier.
+     */
+    private final String basePath;
+
+    /**
      * Current state of this context.
      */
     private volatile State state = State.initializing;
@@ -64,8 +69,13 @@ public class ZooKeeperElectionContext {
 
     private volatile boolean master;
 
-    public ZooKeeperElectionContext(ZooKeeperElection election) {
+    public ZooKeeperElectionContext(ZooKeeperElection election, String basePath) {
         this.election = election;
+        this.basePath = basePath;
+    }
+
+    public String getBasePath() {
+        return basePath;
     }
 
     public State getState() {
