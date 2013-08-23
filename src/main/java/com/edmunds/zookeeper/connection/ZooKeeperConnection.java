@@ -15,6 +15,7 @@
  */
 package com.edmunds.zookeeper.connection;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.Validate;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.AsyncCallback;
@@ -181,6 +182,11 @@ public class ZooKeeperConnection {
      * the listeners are notified of the initial connection.
      */
     public void connect() {
+        if (StringUtils.isBlank(hostName)) {
+            logger.warn("ZooKeeper hostname is blank - will not try to connect");
+            return;
+        }
+
         if (state == ZooKeeperConnectionState.CONNECTED || dnsRetryCount == 0) {
             return;
         }

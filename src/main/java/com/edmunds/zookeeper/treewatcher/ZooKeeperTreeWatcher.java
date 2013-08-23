@@ -16,6 +16,8 @@
 package com.edmunds.zookeeper.treewatcher;
 
 import com.edmunds.zookeeper.connection.ZooKeeperConnection;
+import com.edmunds.zookeeper.connection.ZooKeeperConnectionListener;
+import com.edmunds.zookeeper.connection.ZooKeeperConnectionState;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
@@ -30,6 +32,13 @@ import static org.apache.zookeeper.KeeperException.Code;
 
 /**
  * Maintains the state of a tree and calls back each time the in memory tree becomes consistent with the server.
+ * <p/>
+ * Additionally every node in the tree has a "level" typically the root node is level 0 and the level
+ * below that is 1 and so on. However it may be the case that your logic requires the root to be 1 (or n).
+ * As a result it is possible to set the root level to any value, the watcher will then increments +1 for each level.
+ * <p/>
+ * You must pass the desired rootLevel (0, 1 or n) to the constructor.
+ * Note: The watcher doesn't care what value you set.
  */
 public class ZooKeeperTreeWatcher implements Watcher {
 
@@ -43,6 +52,49 @@ public class ZooKeeperTreeWatcher implements Watcher {
     private ZooKeeperTreeState previousState;
     private ZooKeeperTreeState currentState;
 
+    /**
+     * Constructs the ZooKeeperTreeWatcher.
+     * <p/>
+     * If you enable autoInitialize the watcher will register a listener with the connection to initialize itself.
+     * This has the advantages that:
+     * <ul>
+     * <li>You don't need to worry when/if you have a successful connection to ZooKeeper.</li>
+     * <li>You don't need to worry about re-initializing the watcher.</li>
+     * <li>You don't have to maintain a reference to the watcher yourself.</li>
+     * </ul>
+     * However you loose fine grained control, over your application initialization, if you use autoInitialize.
+     *
+     * @param connection     the connection to the ZooKeeper server, you will need to call "connect()" on the connection,
+     *                       however you don't need to re-initialize this class (it will handle server dis/re-connects).
+     * @param rootLevel      What level you call the root node (typically 0 or 1) - this has no effect on the watcher.
+     * @param rootPath       The root path for the watcher to "watch".
+     * @param callback       The callback to be used when the tree is consistent.
+     * @param autoInitialize Should the watcher register a listener to automatically (re)initialize.
+     */
+
+    public ZooKeeperTreeWatcher(
+            ZooKeeperConnection connection,
+            int rootLevel, String rootPath,
+            ZooKeeperTreeConsistentCallback callback,
+            boolean autoInitialize) {
+
+        this(connection, rootLevel, rootPath, callback);
+
+        if (autoInitialize) {
+            connection.addListener(new ConnectionInitializedListener());
+        }
+    }
+
+    /**
+     * Constructs the ZooKeeperTreeWatcher, without automatic initialization.
+     * <p/>
+     * If you use this constructor you will need to call initialize(), every time the connection is re-initialized.
+     *
+     * @param connection the connection to the ZooKeeper server, you will need to call "connect()" on the connection.
+     * @param rootLevel  What level you call the root node (typically 0 or 1) - this has no effect on the watcher.
+     * @param rootPath   The root path for the watcher to "watch".
+     * @param callback   The callback to be used when the tree is consistent.
+     */
     public ZooKeeperTreeWatcher(
             ZooKeeperConnection connection,
             int rootLevel, String rootPath,
@@ -313,5 +365,14 @@ public class ZooKeeperTreeWatcher implements Watcher {
                 existsResult(Code.get(rc), path, stat);
             }
         }, ctx);
+    }
+
+    private final class ConnectionInitializedListener implements ZooKeeperConnectionListener {
+        @Override
+        public void onConnectionStateChanged(ZooKeeperConnectionState state) {
+            if (state == ZooKeeperConnectionState.INITIALIZED) {
+                ZooKeeperTreeWatcher.this.initialize();
+            }
+        }
     }
 }
